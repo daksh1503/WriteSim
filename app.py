@@ -1,259 +1,174 @@
 """
-Gradio interface for the fine-tuned language model.
+Gradio interface for WriteSim text generation.
 """
 
-import os
-import torch
 import gradio as gr
-from src.inference import load_model_and_tokenizer, generate_text
+import torch
+from transformers import AutoTokenizer, AutoModelForCausalLM
+from peft import PeftModel
+import os
 
-
-# Global variables for model and tokenizer
-model = None
-tokenizer = None
-
-
-def initialize_model(model_dir, base_model):
-    """
-    Initialize the model and tokenizer.
-    
-    Args:
-        model_dir (str): Directory with fine-tuned model
-        base_model (str): Base model name
-        
-    Returns:
-        tuple: (success, message)
-    """
-    global model, tokenizer
-    
+def load_model(model_path="models/fine_tuned"):
+    """Load the fine-tuned model and tokenizer."""
     try:
-        model, tokenizer = load_model_and_tokenizer(model_dir, base_model)
-        return True, f"Model loaded successfully from {model_dir}"
+        base_model = "gpt2"  # or load from config
+        tokenizer = AutoTokenizer.from_pretrained(base_model)
+        model = AutoModelForCausalLM.from_pretrained(
+            base_model,
+            torch_dtype=torch.float16,
+            device_map="auto"
+        )
+        model = PeftModel.from_pretrained(model, model_path)
+        model.eval()
+        return model, tokenizer
     except Exception as e:
-        return False, f"Error loading model: {str(e)}"
+        print(f"Error loading model: {e}")
+        return None, None
 
-
-def generate(
+def generate_text(
     prompt, 
-    model_dir="models/fine_tuned",
-    base_model="gpt2",
-    max_length=100,
-    temperature=0.7,
-    top_p=0.9,
-    top_k=50,
-    num_sequences=1
+    max_length=200, 
+    temperature=0.7, 
+    top_p=0.9, 
+    top_k=50, 
+    num_return_sequences=1,
+    repetition_penalty=1.1
 ):
-    """
-    Generate text based on the prompt.
-    
-    Args:
-        prompt (str): Text prompt
-        model_dir (str): Directory with fine-tuned model
-        base_model (str): Base model name
-        max_length (int): Maximum length of generated text
-        temperature (float): Temperature for generation
-        top_p (float): Top-p sampling parameter
-        top_k (int): Top-k sampling parameter
-        num_sequences (int): Number of sequences to generate
-        
-    Returns:
-        str: Generated text
-    """
-    global model, tokenizer
-    
-    # Initialize model if not already loaded
-    if model is None or tokenizer is None:
-        success, message = initialize_model(model_dir, base_model)
-        if not success:
-            return message
-    
-    # Check if prompt is empty
-    if not prompt:
-        return "Please enter a prompt to generate text."
-    
+    """Generate text based on the prompt."""
     try:
-        # Generate text
-        generated_texts = generate_text(
-            model,
-            tokenizer,
-            prompt,
+        model, tokenizer = load_model()
+        if model is None:
+            return "Error: Model not found. Please train the model first."
+
+        inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+        
+        outputs = model.generate(
+            **inputs,
             max_length=max_length,
             temperature=temperature,
             top_p=top_p,
             top_k=top_k,
-            num_return_sequences=num_sequences
+            num_return_sequences=num_return_sequences,
+            repetition_penalty=repetition_penalty,
+            pad_token_id=tokenizer.eos_token_id,
+            do_sample=True
         )
         
-        # Format the output
-        if num_sequences > 1:
-            result = ""
-            for i, text in enumerate(generated_texts):
-                result += f"Response {i+1}:\n{text}\n\n"
-            return result.strip()
-        else:
-            return generated_texts[0]
-    
+        generated_texts = [tokenizer.decode(output, skip_special_tokens=True) for output in outputs]
+        return generated_texts[0]
     except Exception as e:
-        return f"Error generating text: {str(e)}"
+        return f"Error generating text: {e}"
 
+def check_model_status():
+    """Check if the model has been trained."""
+    if os.path.exists("models/fine_tuned"):
+        return "✅ Model is ready"
+    return "❌ Model not found. Please train the model first."
 
-def create_ui():
-    """
-    Create the Gradio interface.
+# Create the Gradio interface
+with gr.Blocks(title="WriteSim", theme=gr.themes.Soft()) as demo:
+    gr.Markdown("""
+    # WriteSim: Your Personal Writing Style Generator
+    Generate text that matches your writing style using a fine-tuned language model.
+    """)
     
-    Returns:
-        gr.Interface: Gradio interface
-    """
-    # Default model paths
-    default_model_dir = "models/fine_tuned"
-    default_base_model = "gpt2"
-    
-    # Check if model directory exists
-    model_exists = os.path.exists(default_model_dir)
-    
-    # Create interface
-    with gr.Blocks(title="WriteSim: Your Writing Style Generator") as interface:
-        gr.Markdown("# WriteSim: Generate Text in Your Writing Style")
-        
-        with gr.Row():
-            with gr.Column(scale=3):
-                prompt = gr.Textbox(
-                    label="Prompt",
-                    placeholder="Enter a prompt to generate text in your style...",
-                    lines=3
+    with gr.Row():
+        with gr.Column(scale=2):
+            prompt = gr.Textbox(
+                label="Prompt",
+                placeholder="Enter your prompt here...",
+                lines=3
+            )
+            
+            with gr.Row():
+                generate_btn = gr.Button("Generate", variant="primary")
+                clear_btn = gr.Button("Clear")
+            
+            output = gr.Textbox(
+                label="Generated Text",
+                lines=10,
+                show_copy_button=True
+            )
+            
+        with gr.Column(scale=1):
+            with gr.Group():
+                gr.Markdown("### Generation Settings")
+                max_length = gr.Slider(
+                    minimum=50,
+                    maximum=1000,
+                    value=200,
+                    step=50,
+                    label="Maximum Length"
                 )
-                
-                generate_button = gr.Button("Generate", variant="primary")
-                
-                output = gr.Textbox(
-                    label="Generated Text",
-                    placeholder="Generated text will appear here...",
-                    lines=10
+                temperature = gr.Slider(
+                    minimum=0.1,
+                    maximum=1.5,
+                    value=0.7,
+                    step=0.1,
+                    label="Temperature"
+                )
+                top_p = gr.Slider(
+                    minimum=0.1,
+                    maximum=1.0,
+                    value=0.9,
+                    step=0.1,
+                    label="Top-p"
+                )
+                top_k = gr.Slider(
+                    minimum=1,
+                    maximum=100,
+                    value=50,
+                    step=1,
+                    label="Top-k"
+                )
+                repetition_penalty = gr.Slider(
+                    minimum=1.0,
+                    maximum=2.0,
+                    value=1.1,
+                    step=0.1,
+                    label="Repetition Penalty"
+                )
+                num_return_sequences = gr.Slider(
+                    minimum=1,
+                    maximum=5,
+                    value=1,
+                    step=1,
+                    label="Number of Responses"
                 )
             
-            with gr.Column(scale=1):
-                with gr.Accordion("Advanced Settings", open=False):
-                    model_dir = gr.Textbox(
-                        label="Model Directory",
-                        value=default_model_dir,
-                        placeholder="Path to fine-tuned model"
-                    )
-                    
-                    base_model = gr.Textbox(
-                        label="Base Model",
-                        value=default_base_model,
-                        placeholder="Base model name for PEFT"
-                    )
-                    
-                    max_length = gr.Slider(
-                        label="Max Length",
-                        minimum=10,
-                        maximum=500,
-                        value=100,
-                        step=10
-                    )
-                    
-                    temperature = gr.Slider(
-                        label="Temperature",
-                        minimum=0.1,
-                        maximum=1.5,
-                        value=0.7,
-                        step=0.1
-                    )
-                    
-                    top_p = gr.Slider(
-                        label="Top-p",
-                        minimum=0.1,
-                        maximum=1.0,
-                        value=0.9,
-                        step=0.1
-                    )
-                    
-                    top_k = gr.Slider(
-                        label="Top-k",
-                        minimum=0,
-                        maximum=100,
-                        value=50,
-                        step=5
-                    )
-                    
-                    num_sequences = gr.Slider(
-                        label="Number of Responses",
-                        minimum=1,
-                        maximum=5,
-                        value=1,
-                        step=1
-                    )
-        
-        # Display warning if model doesn't exist
-        if not model_exists:
-            gr.Markdown(
-                """
-                ⚠️ **Warning**: Model not found in the default location.
-                
-                Please:
-                1. Run the data cleaning script: `python src/data_cleaning.py`
-                2. Run the dataset preparation script: `python src/dataset_preparation.py`
-                3. Run the model training script: `python src/model_training.py`
-                
-                Or update the model directory path in the Advanced Settings.
-                """
-            )
-        
-        # Set up event handler
-        generate_button.click(
-            fn=generate,
-            inputs=[
-                prompt,
-                model_dir,
-                base_model,
-                max_length,
-                temperature,
-                top_p,
-                top_k,
-                num_sequences
-            ],
-            outputs=output
-        )
-        
-        # Add examples
-        with gr.Accordion("Example Prompts", open=True):
-            example_prompts = [
-                "The future of artificial intelligence is",
-                "I always believed that the most important thing in life was",
-                "If I could change one thing about our society, it would be",
-                "The most beautiful thing I ever saw was"
-            ]
-            
-            gr.Examples(
-                examples=example_prompts,
-                inputs=prompt
-            )
-        
-        # Add instructions
-        with gr.Accordion("Instructions", open=False):
-            gr.Markdown(
-                """
-                ## How to Use
-                
-                1. Enter a prompt in the text box.
-                2. Adjust the generation parameters if desired.
-                3. Click "Generate" to create text in your writing style.
-                
-                ## Parameters
-                
-                - **Max Length**: Controls how long the generated text will be.
-                - **Temperature**: Higher values (>1.0) make the output more random, while lower values make it more focused and deterministic.
-                - **Top-p**: Controls diversity via nucleus sampling. Lower values will make the output more focused.
-                - **Top-k**: Controls diversity by limiting to the k most likely next words. Lower values make the output more focused.
-                - **Number of Responses**: Generate multiple different responses to the same prompt.
-                """
-            )
+            with gr.Group():
+                gr.Markdown("### Model Status")
+                status = gr.Markdown(check_model_status())
     
-    return interface
+    with gr.Accordion("Help", open=False):
+        gr.Markdown("""
+        ### How to use WriteSim
+        1. Enter a prompt in the text box
+        2. Adjust the generation settings if desired:
+           - **Maximum Length**: Controls how long the generated text will be
+           - **Temperature**: Higher values make the output more creative but less focused
+           - **Top-p**: Controls diversity of word choices
+           - **Top-k**: Limits the number of tokens considered for each step
+           - **Repetition Penalty**: Helps prevent repetitive text
+           - **Number of Responses**: How many different completions to generate
+        3. Click "Generate" to create text in your style
+        
+        ### Tips
+        - Use longer prompts for more context
+        - Adjust temperature up for creative writing, down for more focused output
+        - If the output is too repetitive, increase the repetition penalty
+        - For more variety, increase both top-k and top-p values
+        """)
+    
+    # Set up event handlers
+    generate_btn.click(
+        generate_text,
+        inputs=[prompt, max_length, temperature, top_p, top_k, num_return_sequences, repetition_penalty],
+        outputs=output
+    )
+    clear_btn.click(lambda: "", None, prompt)
+    clear_btn.click(lambda: "", None, output)
 
-
+# Launch the app
 if __name__ == "__main__":
-    # Create and launch the interface
-    interface = create_ui()
-    interface.launch(share=False) 
+    demo.launch(share=False) 
