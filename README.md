@@ -12,7 +12,7 @@ This project allows you to fine-tune a language model on your personal writings 
 
 ## Setup
 
-1. Place your text files in the `data/raw` directory
+1. Place your text files in the `data/raw` (Create the directory manually after pulling the repo) directory
 2. Install dependencies:
    ```
    pip install -r requirements.txt
