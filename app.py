@@ -1,75 +1,68 @@
 """
-Gradio interface for WriteSim text generation.
+Gradio interface for WriteSim text generation using GPT-4 Turbo.
 """
 
 import gradio as gr
-import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM
-from peft import PeftModel
 import os
+from openai import OpenAI
+import json
 
-def load_model(model_path="models/fine_tuned"):
-    """Load the fine-tuned model and tokenizer."""
+# Initialize OpenAI client
+client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+
+def load_writing_style():
+    """Load the analyzed writing style patterns."""
     try:
-        base_model = "gpt2"  # or load from config
-        tokenizer = AutoTokenizer.from_pretrained(base_model)
-        model = AutoModelForCausalLM.from_pretrained(
-            base_model,
-            torch_dtype=torch.float16,
-            device_map="auto"
-        )
-        model = PeftModel.from_pretrained(model, model_path)
-        model.eval()
-        return model, tokenizer
-    except Exception as e:
-        print(f"Error loading model: {e}")
-        return None, None
+        with open('data/processed/style_patterns.json', 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return None
 
 def generate_text(
     prompt, 
-    max_length=200, 
-    temperature=0.7, 
-    top_p=0.9, 
-    top_k=50, 
-    num_return_sequences=1,
-    repetition_penalty=1.1
+    max_length=800,
+    temperature=0.7,
+    top_p=0.9,
+    style_intensity="moderate"
 ):
-    """Generate text based on the prompt."""
+    """Generate text using GPT-4 Turbo with your writing style."""
     try:
-        model, tokenizer = load_model()
-        if model is None:
-            return "Error: Model not found. Please train the model first."
+        style_patterns = load_writing_style()
+        if not style_patterns:
+            return "Error: Writing style patterns not found. Please analyze your writing first."
 
-        inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
-        
-        outputs = model.generate(
-            **inputs,
-            max_length=max_length,
+        # Create a system message that instructs GPT-4 to mimic your style
+        system_message = f"""You are a writing assistant that mimics the following style characteristics:
+- Typical sentence length: {style_patterns['avg_sentence_length']} words
+- Common phrase patterns: {', '.join(style_patterns['common_phrases'][:5])}
+- Vocabulary level: {style_patterns['vocabulary_level']}
+- Tone: {style_patterns['tone']}
+- Writing quirks: {', '.join(style_patterns['writing_quirks'])}
+
+Maintain these style elements while generating text that sounds natural and coherent."""
+
+        response = client.chat.completions.create(
+            model="gpt-4-1106-preview",  # GPT-4 Turbo
+            messages=[
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=max_length,
             temperature=temperature,
             top_p=top_p,
-            top_k=top_k,
-            num_return_sequences=num_return_sequences,
-            repetition_penalty=repetition_penalty,
-            pad_token_id=tokenizer.eos_token_id,
-            do_sample=True
+            presence_penalty=0.1,
+            frequency_penalty=0.1
         )
         
-        generated_texts = [tokenizer.decode(output, skip_special_tokens=True) for output in outputs]
-        return generated_texts[0]
+        return response.choices[0].message.content
     except Exception as e:
         return f"Error generating text: {e}"
 
-def check_model_status():
-    """Check if the model has been trained."""
-    if os.path.exists("models/fine_tuned"):
-        return "✅ Model is ready"
-    return "❌ Model not found. Please train the model first."
-
 # Create the Gradio interface
-with gr.Blocks(title="WriteSim", theme=gr.themes.Soft()) as demo:
+with gr.Blocks(title="WriteSim GPT-4", theme=gr.themes.Soft()) as demo:
     gr.Markdown("""
     # WriteSim: Your Personal Writing Style Generator
-    Generate text that matches your writing style using a fine-tuned language model.
+    Powered by GPT-4 Turbo
     """)
     
     with gr.Row():
@@ -94,11 +87,11 @@ with gr.Blocks(title="WriteSim", theme=gr.themes.Soft()) as demo:
             with gr.Group():
                 gr.Markdown("### Generation Settings")
                 max_length = gr.Slider(
-                    minimum=50,
-                    maximum=1000,
-                    value=200,
-                    step=50,
-                    label="Maximum Length"
+                    minimum=100,
+                    maximum=2000,
+                    value=800,
+                    step=100,
+                    label="Maximum Length (tokens)"
                 )
                 temperature = gr.Slider(
                     minimum=0.1,
@@ -114,61 +107,23 @@ with gr.Blocks(title="WriteSim", theme=gr.themes.Soft()) as demo:
                     step=0.1,
                     label="Top-p"
                 )
-                top_k = gr.Slider(
-                    minimum=1,
-                    maximum=100,
-                    value=50,
-                    step=1,
-                    label="Top-k"
+                style_intensity = gr.Radio(
+                    choices=["subtle", "moderate", "strong"],
+                    value="moderate",
+                    label="Style Intensity"
                 )
-                repetition_penalty = gr.Slider(
-                    minimum=1.0,
-                    maximum=2.0,
-                    value=1.1,
-                    step=0.1,
-                    label="Repetition Penalty"
-                )
-                num_return_sequences = gr.Slider(
-                    minimum=1,
-                    maximum=5,
-                    value=1,
-                    step=1,
-                    label="Number of Responses"
-                )
-            
-            with gr.Group():
-                gr.Markdown("### Model Status")
-                status = gr.Markdown(check_model_status())
-    
-    with gr.Accordion("Help", open=False):
-        gr.Markdown("""
-        ### How to use WriteSim
-        1. Enter a prompt in the text box
-        2. Adjust the generation settings if desired:
-           - **Maximum Length**: Controls how long the generated text will be
-           - **Temperature**: Higher values make the output more creative but less focused
-           - **Top-p**: Controls diversity of word choices
-           - **Top-k**: Limits the number of tokens considered for each step
-           - **Repetition Penalty**: Helps prevent repetitive text
-           - **Number of Responses**: How many different completions to generate
-        3. Click "Generate" to create text in your style
-        
-        ### Tips
-        - Use longer prompts for more context
-        - Adjust temperature up for creative writing, down for more focused output
-        - If the output is too repetitive, increase the repetition penalty
-        - For more variety, increase both top-k and top-p values
-        """)
     
     # Set up event handlers
     generate_btn.click(
         generate_text,
-        inputs=[prompt, max_length, temperature, top_p, top_k, num_return_sequences, repetition_penalty],
+        inputs=[prompt, max_length, temperature, top_p, style_intensity],
         outputs=output
     )
     clear_btn.click(lambda: "", None, prompt)
     clear_btn.click(lambda: "", None, output)
 
-# Launch the app
 if __name__ == "__main__":
+    if not os.getenv('OPENAI_API_KEY'):
+        print("Error: OPENAI_API_KEY environment variable not set")
+        exit(1)
     demo.launch(share=False) 
