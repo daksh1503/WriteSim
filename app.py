@@ -75,7 +75,7 @@ theme = gr.themes.Soft(
 
 with gr.Blocks(title="WriteSim GPT-4", theme=theme) as demo:
     gr.Markdown("""
-    # Advanced AI made easy
+    # WriteSim
     Overcome writer's block with our AI writing assistant.
     """, elem_classes=["center-text"])
     
