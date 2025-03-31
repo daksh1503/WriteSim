@@ -20,11 +20,14 @@ def generate_text(
     prompt, 
     max_length=800,
     temperature=0.7,
-    top_p=0.9,
     style_intensity="moderate"
 ):
     """Generate text using GPT-4 Turbo with the specified style."""
     try:
+        # Convert parameters to correct types
+        max_length = int(max_length)
+        temperature = float(temperature)
+        
         # Get style template
         style = STYLE_TEMPLATE["introspective"]
         
@@ -52,7 +55,7 @@ def generate_text(
                 ],
                 max_tokens=max_length,
                 temperature=temperature,
-                top_p=top_p,
+                top_p=0.9,  # Hardcoded since it's not exposed in UI
                 presence_penalty=0.1,
                 frequency_penalty=0.1
             )
@@ -63,8 +66,14 @@ def generate_text(
     except Exception as e:
         return f"Error generating text: {e}"
 
-# Create the Gradio interface
-with gr.Blocks(title="WriteSim GPT-4", theme=gr.themes.Soft()) as demo:
+# Create the Gradio interface with theme
+theme = gr.themes.Soft(
+    primary_hue="slate",
+    neutral_hue="slate",
+    font=["Inter", "ui-sans-serif", "system-ui", "sans-serif"]
+)
+
+with gr.Blocks(title="WriteSim GPT-4", theme=theme) as demo:
     gr.Markdown("""
     # Advanced AI made easy
     Overcome writer's block with our AI writing assistant.
@@ -136,17 +145,9 @@ with gr.Blocks(title="WriteSim GPT-4", theme=gr.themes.Soft()) as demo:
         border-radius: 8px;
         background: white;
     }
-    .footer {
-        text-align: center;
-        padding: 1rem;
-        position: fixed;
-        bottom: 0;
-        width: 100%;
-        background: white;
-        border-top: 1px solid #e5e7eb;
-    }
+    
     """
-    demo.load(None, None, None, _js=f"() => {{ document.head.innerHTML += `<style>{css}</style>` }}")
+    demo.load(None, None, None, js=f"() => {{ document.head.innerHTML += `<style>{css}</style>` }}")
 
     # Set up event handlers
     generate_btn.click(
@@ -161,12 +162,5 @@ if __name__ == "__main__":
     if not os.getenv('OPENAI_API_KEY'):
         print("Error: OPENAI_API_KEY environment variable not set")
         exit(1)
-    # Launch with custom theme
-    demo.launch(
-        share=False,
-        theme=gr.themes.Soft(
-            primary_hue="slate",
-            neutral_hue="slate",
-            font=["Inter", "ui-sans-serif", "system-ui", "sans-serif"]
-        )
-    )
+    # Launch without theme parameter
+    demo.launch(share=False)
