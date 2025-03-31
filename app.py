@@ -85,7 +85,7 @@ with gr.Blocks(title="WriteSim GPT-4", theme=theme) as demo:
             prompt = gr.Textbox(
                 label="",
                 placeholder="Enter your prompt here...",
-                lines=5,
+                lines=5, 
                 elem_classes=["clean-textbox"]
             )
             
@@ -95,7 +95,7 @@ with gr.Blocks(title="WriteSim GPT-4", theme=theme) as demo:
             
             output = gr.Textbox(
                 label="",
-                lines=8,
+                lines=12,
                 show_copy_button=True,
                 elem_classes=["clean-textbox"]
             )
