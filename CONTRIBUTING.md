@@ -5,25 +5,25 @@ Thank you for your interest in contributing to WriteSim! This document provides 
 ## Getting Started
 
 1. Fork the repository
-2. Create a virtual environment:
+
+2. Clone the Repo
    ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Unix/macOS
-   # or
-   venv\Scripts\activate     # On Windows
-   ```
-3. Install dependencies:
+   git clone https://github.com/your-username/WriteSim.git 
+   cd WriteSim
+   ``` 
+3. Create a New Branch
    ```bash
-   pip install -r requirements.txt
+   git checkout -b feature-branch
    ```
-4. Set up your OpenAI API key:
+4. Make Your Changes
+5. Commit Your Changes
    ```bash
-   export OPENAI_API_KEY='your-api-key-here'  # Unix/macOS
-   # or
-   set OPENAI_API_KEY=your-api-key-here       # Windows
+   git add .
+   git commit -m "Brief description of changes"
+   git push origin feature-branch
    ```
-5. Make your changes
-6. Test locally:
+6. Make your changes
+7. Test locally:
    ```bash
    python app.py
    ```
