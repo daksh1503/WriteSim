@@ -1,45 +1,64 @@
-# WriteSim: Fine-Tuning LLMs on Personal Writings
+# WriteSim: Advanced AI Writing Assistant
 
-This project allows you to fine-tune a language model on your personal writings to generate text in your writing style.
+A minimalist GPT-4 powered writing assistant that helps you generate text in a specific style.
+
+## Overview
+
+WriteSim uses GPT-4 Turbo to generate high-quality text that matches a predefined writing style. Perfect for writers, content creators, and anyone looking to maintain consistent writing across their work.
 
 ## Features
 
-- Data cleaning and preprocessing for text files
-- Dataset preparation for transformer models
-- Fine-tuning with efficient techniques (LoRA/PEFT)
-- Text generation through command line or Gradio UI
-- Metal acceleration support for M1/M2 Macs
+- Clean, minimalist interface
+- GPT-4 Turbo powered text generation
+- Customizable style intensity (subtle, moderate, strong)
+- Adjustable generation parameters
+- One-click text generation
 
-## Setup
+## Quick Start
 
-1. Place your text files in the `data/raw` (Create the directory manually after pulling the repo) directory
-2. Install dependencies:
+1. Set your OpenAI API key:
+   ```bash
+   export OPENAI_API_KEY='your-api-key-here'
    ```
+
+2. Install dependencies:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Unix/macOS
+   # or
+   venv\Scripts\activate     # On Windows
+   
    pip install -r requirements.txt
    ```
-3. Run the data cleaning script:
-   ```
-   python src/data_cleaning.py
-   ```
-4. Fine-tune the model:
-   ```
-   python src/model_training.py
-   ```
-5. Generate text with your model:
-   ```
-   python src/inference.py
-   ```
-   
-Or use the Gradio UI:
-```
-python app.py
-```
 
-## Configuration
+3. Run the app:
+   ```bash
+   python app.py
+   ```
 
-You can adjust training parameters in `src/model_training.py` including:
-- Learning rate
-- Number of epochs
-- LoRA rank and alpha
-- Model size
-- Batch size 
+## Usage
+
+1. Enter your writing prompt in the text box
+2. Adjust generation settings if needed:
+   - Maximum Length: Control the length of generated text
+   - Temperature: Adjust creativity level
+   - Style Intensity: Choose between subtle, moderate, or strong style adherence
+3. Click "Generate" to create your text
+4. Use the copy button to copy the generated text
+
+## Requirements
+
+- Python 3.8+
+- OpenAI API key
+- Minimal dependencies:
+  - openai
+  - gradio
+  - typing-extensions
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute to this project.
+
+## License
+
+© 2025 WriteSim. All rights reserved. 
