@@ -4,6 +4,7 @@ Gradio interface for WriteSim text generation using GPT-4 Turbo.
 
 import gradio as gr
 import os
+from gradio.themes import Soft, fonts
 from openai import OpenAI, OpenAIError
 from src.style_templates import STYLE_TEMPLATE
 import sys
@@ -70,7 +71,7 @@ def generate_text(
 theme = gr.themes.Soft(
     primary_hue="slate",
     neutral_hue="slate",
-    font=["Inter", "ui-sans-serif", "system-ui", "sans-serif"]
+    font=("Inter")
 )
 
 with gr.Blocks(title="WriteSim GPT-4", theme=theme) as demo:
